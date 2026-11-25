@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.3](https://github.com/spiritledsoftware/neopane/compare/v0.2.2...v0.2.3) (2026-11-25)
+
+
+### Documentation
+
+* **agents:** run targeted checks, leave the full suite to CI ([#250](https://github.com/spiritledsoftware/neopane/issues/250)) ([e2a4b98](https://github.com/spiritledsoftware/neopane/commit/e2a4b98ec0bd162b2c9dc8ff031e683af1e36665))
+
 ## [0.2.2](https://github.com/spiritledsoftware/neopane/compare/v0.2.1...v0.2.2) (2026-11-18)
 
 
