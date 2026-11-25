@@ -47,7 +47,7 @@ live in a terminal you work in can steal its focus: the "Running it live" sectio
 - Keep a pull request to one change, with tests for what it fixes or adds.
 - Run `just test`, `just fmt` and `just lint` before you push. Run `just golden` too if you change what gets drawn
   (`src/screen/`, `PaneView`). CI runs fmt, clippy and the tests on macOS and Linux, and checks the minimum Rust
-  version.
+  version. Agents run targeted checks instead; see Verify in [AGENTS.md](AGENTS.md).
 - Update the README or `docs/` when you change what users see. A decision that is hard to reverse gets an ADR in
   `docs/adr/`.
 - A few rules are enforced by tests:
