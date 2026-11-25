@@ -19,9 +19,9 @@ Every user-visible name comes from `NAME` in `src/name.rs` (ADR 0005): Neovim va
 
 ## Verify
 
-- Run `just test` after every change. Tests that need Neovim skip when `nvim` isn't installed, so a pass without `nvim` proves less. With `CI` set they panic instead; GitHub Actions runs fmt, clippy and the tests, on macOS and Linux, on every push to `main` and every PR. The Herdr app's tests (`tests/herdr_app.rs`) skip the same way without `hc` (CI installs it with `scripts/install-hc.sh`); those against a real Herdr app window run only with `just test-herdr-app`.
-- Run `just golden` after changing what gets drawn (`src/screen/`, `PaneView`). It checks every frame through Ghostty's emulator, which it builds with Zig 0.17.
-- Run `just fmt` and `just lint` on Rust sources. `windows.lua` has no formatter config: keep its two-space hand formatting. If your edit tool reformats Lua, write the file from a shell command instead.
+- Several agents share the machine, so run only the tests that cover your change, one target per run: `cargo test --test <file>` (the files in `tests/`), `cargo test --lib <name filter>` for a unit test in `src/`, or a test-name filter. Don't run `just test` or a whole `cargo test`; CI runs fmt, clippy and the full suite, on macOS and Linux, on every push to `main` and every PR. Tests that need Neovim skip when `nvim` isn't installed, so a pass without `nvim` proves less; with `CI` set they panic instead. The Herdr app's tests (`tests/herdr_app.rs`) skip the same way without `hc` (CI installs it with `scripts/install-hc.sh`); those against a real Herdr app window run only with `just test-herdr-app`.
+- After changing what gets drawn (`src/screen/`, `PaneView`), run `scripts/golden.sh --test golden`, with a test-name filter after it for one frame. It checks every frame through Ghostty's emulator, which it builds with Zig 0.17. Don't use `just golden`: it reruns the full `cargo test` first. CI doesn't run the golden tests.
+- Format your changed Rust files with `rustfmt --edition 2024 <file>`. Clippy has no per-file mode, so leave it, and `just lint`, to CI. `windows.lua` has no formatter config: keep its two-space hand formatting. If your edit tool reformats Lua, write the file from a shell command instead.
 
 ## Pull requests and releases
 
