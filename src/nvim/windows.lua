@@ -1235,6 +1235,20 @@ api.nvim_create_autocmd('TabEnter', {
 })
 
 local pending = false
+-- the window setup adopted under a float current as startup ended, until
+-- it's told current
+local under_float
+
+-- `win`, a window a pane shows, is current: the daemon is told
+local function tell_current(win)
+  under_float = nil
+  last = win
+  was_current(win)
+  last_buf = api.nvim_win_get_buf(win)
+  saw(win)
+  note('win', win)
+end
+
 local function report()
   pending = false
   local cur = api.nvim_get_current_win()
@@ -1280,6 +1294,9 @@ local function report()
   -- a float shows in the pane it floats over, which stays focused, unless
   -- it's in a float group pane: the daemon decides
   if api.nvim_win_get_config(cur).relative ~= '' then
+    -- as if it opened from the window setup adopted under it
+    if under_float and api.nvim_win_is_valid(under_float) then tell_current(under_float) end
+    under_float = nil
     saw(cur)
     note('float', cur)
     return
@@ -1291,11 +1308,7 @@ local function report()
     M.go(cur)
     return
   end
-  last = cur
-  was_current(cur)
-  last_buf = api.nvim_win_get_buf(cur)
-  saw(cur)
-  note('win', cur)
+  tell_current(cur)
 end
 
 -- after the command that moved, so :windo and friends report once
@@ -2672,10 +2685,29 @@ api.nvim_create_autocmd('TabEnter', {
   end,
 })
 
-local first = api.nvim_get_current_win()
+-- The window setup adopts: the current one, unless a float is current as
+-- startup ends, as a plugin's picker may be; then the ordinary window it
+-- floats on, through floats on floats, else the current tab page's first
+-- ordinary window (`window_of`: it has no anchor yet). The float stays
+-- current and floats over it.
+local function first_window()
+  local cur = api.nvim_get_current_win()
+  if api.nvim_win_get_config(cur).relative == '' then return cur end
+  local tab = api.nvim_get_current_tabpage()
+  local c = api.nvim_win_get_config((float_root(cur)))
+  if c.relative == 'win' and c.win and api.nvim_win_is_valid(c.win)
+    and api.nvim_win_get_config(c.win).relative == ''
+    and api.nvim_win_get_tabpage(c.win) == tab then
+    return c.win
+  end
+  return window_of(tab)
+end
+
+local first = first_window()
 M.adopt(first, cols, rows)
+if first ~= api.nvim_get_current_win() then under_float = first end
 schedule_report()
-note_focus(first)
+note_focus(api.nvim_get_current_win())
 report_tabline()
 report_cmdheight()
 fit_tabline()

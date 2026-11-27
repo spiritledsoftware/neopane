@@ -13,7 +13,8 @@ use crate::screen::style::{self, Attr};
 const LUA: &str = include_str!("windows.lua");
 
 /// Installs the Lua on our channel `chan` and makes the current window
-/// external at `cols` x `rows`. Its response is `[first window, anchor]`.
+/// external at `cols` x `rows`; when a float is current, the window under it
+/// instead. Its response is `[first window, anchor, throwaway]`.
 #[doc(hidden)]
 pub fn setup(nvim: &mut Nvim, chan: i64, cols: u32, rows: u32) -> u32 {
     let id = nvim.exec_lua(LUA, 5);
@@ -2005,6 +2006,71 @@ mod tests {
         // :q on the last window quits
         h.input(":q<CR>");
         assert!(!h.until(|_| false));
+    }
+
+    /// Starts Neovim with `cmds` as its `-c` commands, which leave a focused
+    /// float current as startup ends, as a plugin's picker does: `vim.g.float`
+    /// names it, and `vim.g.base` the window setup should adopt. Checks that
+    /// setup adopts that window, gives its tab page an anchor, and leaves the
+    /// float open, current and told as the current float, the adopted window
+    /// told current before it (SPI-1442).
+    fn setup_adopts_the_window_under_a_current_float(cmds: &[&str]) {
+        let mut argv = CLEAN.to_vec();
+        for cmd in cmds {
+            argv.extend(["-c", cmd]);
+        }
+        let Some(mut h) = Harness::spawn(&argv, 40, 10) else {
+            return;
+        };
+        assert!(h.until(|x| x.wins[0] != 0));
+        let [first, anchor] = h.wins;
+        assert!(h.until_external(first));
+        assert_eq!(Some(WinKind::Ordinary), h.kind(anchor));
+        h.sync(&format!(
+            "local api = vim.api
+            assert({first} == vim.g.base, 'setup adopted {first}, not ' .. vim.g.base)
+            assert(api.nvim_win_get_config({first}).external, 'the first window is not external')
+            local a = api.nvim_win_get_config({anchor})
+            assert(a.relative == '' and not a.external, 'the anchor is not ordinary')
+            assert(api.nvim_win_is_valid(vim.g.float), 'the float closed')
+            assert(api.nvim_get_current_win() == vim.g.float, 'the float is not current')"
+        ));
+        let float: i64 = h.eval_str("return tostring(vim.g.float)").parse().unwrap();
+        // told as any current float is: it shows in the pane under it, and
+        // the window it floats on is told current before it, as if the float
+        // opened from it, so the daemon knows Neovim's current window
+        h.want = float;
+        assert!(h.until(|x| x.notes.contains(&Note::Float(x.want))));
+        let at = |n: Note| h.notes.iter().position(|m| *m == n);
+        let (told_first, told_float) = (at(Note::Current(first)), at(Note::Float(float)));
+        assert!(
+            told_first.is_some() && told_first < told_float,
+            "{first} not told current before float {float}: {:?}",
+            h.notes_but_layouts()
+        );
+    }
+
+    #[test]
+    fn an_editor_float_current_as_startup_ends_floats_over_the_first_window_in_the_layout() {
+        // the current window is the second, below the first
+        setup_adopts_the_window_under_a_current_float(&[
+            "split",
+            "wincmd j",
+            "lua vim.g.base = vim.fn.win_getid(1)
+            vim.g.float = vim.api.nvim_open_win(vim.api.nvim_create_buf(false, true), true,
+              { relative = 'editor', row = 1, col = 1, width = 10, height = 3 })",
+        ]);
+    }
+
+    #[test]
+    fn a_float_on_a_window_current_as_startup_ends_has_that_window_adopted() {
+        // the float is on the second window, not the first in the layout
+        setup_adopts_the_window_under_a_current_float(&[
+            "split",
+            "lua vim.g.base = vim.fn.win_getid(2)
+            vim.g.float = vim.api.nvim_open_win(vim.api.nvim_create_buf(false, true), true,
+              { relative = 'win', win = vim.g.base, row = 0, col = 0, width = 10, height = 2 })",
+        ]);
     }
 
     #[test]
