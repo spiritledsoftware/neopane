@@ -13,7 +13,8 @@ use crate::screen::style::{self, Attr};
 const LUA: &str = include_str!("windows.lua");
 
 /// Installs the Lua on our channel `chan` and makes the current window
-/// external at `cols` x `rows`. Its response is `[first window, anchor]`.
+/// external at `cols` x `rows`; when a float is current, the window under it
+/// instead. Its response is `[first window, anchor, throwaway]`.
 #[doc(hidden)]
 pub fn setup(nvim: &mut Nvim, chan: i64, cols: u32, rows: u32) -> u32 {
     let id = nvim.exec_lua(LUA, 5);
@@ -2040,9 +2041,12 @@ mod tests {
     }
 
     #[test]
-    fn an_editor_float_current_as_startup_ends_floats_over_the_window_setup_adopts() {
+    fn an_editor_float_current_as_startup_ends_floats_over_the_first_window_in_the_layout() {
+        // the current window is the second, below the first
         setup_adopts_the_window_under_a_current_float(&[
-            "lua vim.g.base = vim.api.nvim_get_current_win()
+            "split",
+            "wincmd j",
+            "lua vim.g.base = vim.fn.win_getid(1)
             vim.g.float = vim.api.nvim_open_win(vim.api.nvim_create_buf(false, true), true,
               { relative = 'editor', row = 1, col = 1, width = 10, height = 3 })",
         ]);

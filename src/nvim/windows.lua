@@ -2673,24 +2673,21 @@ api.nvim_create_autocmd('TabEnter', {
 })
 
 -- The window setup adopts: the current one, unless a float is current as
--- startup ends, as a plugin's picker may be; then the window it floats on,
--- else the current tab page's first ordinary window. The float stays current
--- and floats over it.
+-- startup ends, as a plugin's picker may be; then the ordinary window it
+-- floats on, through floats on floats, else the current tab page's first
+-- ordinary window (`window_of`: it has no anchor yet). The float stays
+-- current and floats over it.
 local function first_window()
+  local cur = api.nvim_get_current_win()
+  if api.nvim_win_get_config(cur).relative == '' then return cur end
   local tab = api.nvim_get_current_tabpage()
-  local win = api.nvim_get_current_win()
-  for _ = 1, 50 do
-    local c = api.nvim_win_get_config(win)
-    if c.relative == '' then return win end
-    if c.relative ~= 'win' or not c.win or not api.nvim_win_is_valid(c.win)
-      or api.nvim_win_get_tabpage(c.win) ~= tab then
-      break
-    end
-    win = c.win
+  local c = api.nvim_win_get_config((float_root(cur)))
+  if c.relative == 'win' and c.win and api.nvim_win_is_valid(c.win)
+    and api.nvim_win_get_config(c.win).relative == ''
+    and api.nvim_win_get_tabpage(c.win) == tab then
+    return c.win
   end
-  for _, w in ipairs(api.nvim_tabpage_list_wins(tab)) do
-    if api.nvim_win_get_config(w).relative == '' then return w end
-  end
+  return window_of(tab)
 end
 
 local first = first_window()
