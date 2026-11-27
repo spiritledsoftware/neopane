@@ -2007,6 +2007,58 @@ mod tests {
         assert!(!h.until(|_| false));
     }
 
+    /// Starts Neovim with `cmds` as its `-c` commands, which leave a focused
+    /// float current as startup ends, as a plugin's picker does: `vim.g.float`
+    /// names it, and `vim.g.base` the window setup should adopt. Checks that
+    /// setup adopts that window, gives its tab page an anchor, and leaves the
+    /// float open, current and told as the current float (SPI-1442).
+    fn setup_adopts_the_window_under_a_current_float(cmds: &[&str]) {
+        let mut argv = CLEAN.to_vec();
+        for cmd in cmds {
+            argv.extend(["-c", cmd]);
+        }
+        let Some(mut h) = Harness::spawn(&argv, 40, 10) else {
+            return;
+        };
+        assert!(h.until(|x| x.wins[0] != 0));
+        let [first, anchor] = h.wins;
+        assert!(h.until_external(first));
+        assert_eq!(Some(WinKind::Ordinary), h.kind(anchor));
+        h.sync(&format!(
+            "local api = vim.api
+            assert({first} == vim.g.base, 'setup adopted {first}, not ' .. vim.g.base)
+            assert(api.nvim_win_get_config({first}).external, 'the first window is not external')
+            local a = api.nvim_win_get_config({anchor})
+            assert(a.relative == '' and not a.external, 'the anchor is not ordinary')
+            assert(api.nvim_win_is_valid(vim.g.float), 'the float closed')
+            assert(api.nvim_get_current_win() == vim.g.float, 'the float is not current')"
+        ));
+        let float: i64 = h.eval_str("return tostring(vim.g.float)").parse().unwrap();
+        // told as any current float is: it shows in the pane under it
+        h.want = float;
+        assert!(h.until(|x| x.notes.contains(&Note::Float(x.want))));
+    }
+
+    #[test]
+    fn an_editor_float_current_as_startup_ends_floats_over_the_window_setup_adopts() {
+        setup_adopts_the_window_under_a_current_float(&[
+            "lua vim.g.base = vim.api.nvim_get_current_win()
+            vim.g.float = vim.api.nvim_open_win(vim.api.nvim_create_buf(false, true), true,
+              { relative = 'editor', row = 1, col = 1, width = 10, height = 3 })",
+        ]);
+    }
+
+    #[test]
+    fn a_float_on_a_window_current_as_startup_ends_has_that_window_adopted() {
+        // the float is on the second window, not the first in the layout
+        setup_adopts_the_window_under_a_current_float(&[
+            "split",
+            "lua vim.g.base = vim.fn.win_getid(2)
+            vim.g.float = vim.api.nvim_open_win(vim.api.nvim_create_buf(false, true), true,
+              { relative = 'win', win = vim.g.base, row = 0, col = 0, width = 10, height = 2 })",
+        ]);
+    }
+
     #[test]
     fn a_buffer_opened_in_the_anchor_goes_to_the_pane() {
         let Some(mut h) = Harness::spawn(&CLEAN, 40, 10) else {

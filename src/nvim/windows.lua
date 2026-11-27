@@ -2672,10 +2672,31 @@ api.nvim_create_autocmd('TabEnter', {
   end,
 })
 
-local first = api.nvim_get_current_win()
+-- The window setup adopts: the current one, unless a float is current as
+-- startup ends, as a plugin's picker may be; then the window it floats on,
+-- else the current tab page's first ordinary window. The float stays current
+-- and floats over it.
+local function first_window()
+  local tab = api.nvim_get_current_tabpage()
+  local win = api.nvim_get_current_win()
+  for _ = 1, 50 do
+    local c = api.nvim_win_get_config(win)
+    if c.relative == '' then return win end
+    if c.relative ~= 'win' or not c.win or not api.nvim_win_is_valid(c.win)
+      or api.nvim_win_get_tabpage(c.win) ~= tab then
+      break
+    end
+    win = c.win
+  end
+  for _, w in ipairs(api.nvim_tabpage_list_wins(tab)) do
+    if api.nvim_win_get_config(w).relative == '' then return w end
+  end
+end
+
+local first = first_window()
 M.adopt(first, cols, rows)
 schedule_report()
-note_focus(first)
+note_focus(api.nvim_get_current_win())
 report_tabline()
 report_cmdheight()
 fit_tabline()
