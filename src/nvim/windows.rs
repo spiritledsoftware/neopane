@@ -2012,7 +2012,8 @@ mod tests {
     /// float current as startup ends, as a plugin's picker does: `vim.g.float`
     /// names it, and `vim.g.base` the window setup should adopt. Checks that
     /// setup adopts that window, gives its tab page an anchor, and leaves the
-    /// float open, current and told as the current float (SPI-1442).
+    /// float open, current and told as the current float, the adopted window
+    /// told current before it (SPI-1442).
     fn setup_adopts_the_window_under_a_current_float(cmds: &[&str]) {
         let mut argv = CLEAN.to_vec();
         for cmd in cmds {
@@ -2035,9 +2036,18 @@ mod tests {
             assert(api.nvim_get_current_win() == vim.g.float, 'the float is not current')"
         ));
         let float: i64 = h.eval_str("return tostring(vim.g.float)").parse().unwrap();
-        // told as any current float is: it shows in the pane under it
+        // told as any current float is: it shows in the pane under it, and
+        // the window it floats on is told current before it, as if the float
+        // opened from it, so the daemon knows Neovim's current window
         h.want = float;
         assert!(h.until(|x| x.notes.contains(&Note::Float(x.want))));
+        let at = |n: Note| h.notes.iter().position(|m| *m == n);
+        let (told_first, told_float) = (at(Note::Current(first)), at(Note::Float(float)));
+        assert!(
+            told_first.is_some() && told_first < told_float,
+            "{first} not told current before float {float}: {:?}",
+            h.notes_but_layouts()
+        );
     }
 
     #[test]
